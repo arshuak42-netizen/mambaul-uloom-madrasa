@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ml">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b3d2e">
+<title>മമ്പഉൽ ഉലൂം മദ്റസ - കൊറക്കോട്</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%230b3d2e%22/><text x=%2250%22 y=%2266%22 font-size=%2255%22 text-anchor=%22middle%22 fill=%22%23d4af37%22>م</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Malayalam:wght@400;500;600;700;800&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --deep:#0b3d2e;     /* deep madrasa green */
+    --deep2:#0f5641;
+    --gold:#d4af37;     /* gold accent */
+    --gold2:#b8932c;
+    --cream:#fbf6ea;    /* warm paper */
+    --ink:#1c2b24;
+    --rose:#b3463f;     /* absent / alert */
+  }
+  *{font-family:'Noto Sans Malayalam','Amiri',sans-serif;}
+  .font-display{font-family:'Amiri','Noto Sans Malayalam',serif;}
+  body{background:var(--cream); color:var(--ink);}
+  .bg-deep{background:var(--deep);}
+  .bg-deep2{background:var(--deep2);}
+  .text-gold{color:var(--gold);}
+  .bg-gold{background:var(--gold);}
+  .border-gold{border-color:var(--gold);}
+  .ring-gold{box-shadow:0 0 0 2px var(--gold);}
+  .arch-card{
+    border-radius:1.25rem 1.25rem .5rem .5rem;
+    position:relative;
+    box-shadow:0 6px 18px -8px rgba(11,61,46,.35);
+  }
+  .arch-card::before{
+    content:"";
+    position:absolute; top:0; left:50%; transform:translate(-50%,-55%);
+    width:34px; height:34px; border-radius:50%;
+    background:inherit; box-shadow:inherit;
+  }
+  .scroll-thin::-webkit-scrollbar{height:6px;width:6px;}
+  .scroll-thin::-webkit-scrollbar-thumb{background:var(--gold);border-radius:4px;}
+  .tab-active{background:var(--deep); color:#fff;}
+  .tab-active .ic{color:var(--gold);}
+  .pill{border-radius:999px;}
+  .lattice{
+    background-image:
+      linear-gradient(135deg, transparent 48%, rgba(212,175,55,.18) 49%, rgba(212,175,55,.18) 51%, transparent 52%),
+      linear-gradient(45deg, transparent 48%, rgba(212,175,55,.18) 49%, rgba(212,175,55,.18) 51%, transparent 52%);
+    background-size:22px 22px;
+  }
+  .modal-bg{background:rgba(11,61,46,.55);}
+  .gold-divider{height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);}
+  .skel{background:linear-gradient(90deg,#eee 25%,#f7f7f7 37%,#eee 63%);background-size:400% 100%;animation:sk 1.4s infinite;}
+  @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+  @media(prefers-reduced-motion:reduce){.animate-pulse,.skel{animation:none!important;}}
+</style>
+</head>
+<body class="min-h-screen">
+
+<div id="app" class="min-h-screen flex flex-col"></div>
+
+<!-- toast -->
+<div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[999] hidden">
+  <div class="bg-deep text-white px-5 py-3 rounded-xl shadow-xl text-sm font-medium flex items-center gap-2 border border-gold/40">
+    <span id="toast-icon">✓</span><span id="toast-msg"></span>
+  </div>
+</div>
+
+<script>
+/* ===================== FIREBASE ===================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyA1wDF3GEu7vqght-m8cMhLfdQ-xScDBL0",
+  authDomain: "mamb-ul-uloom-madrasa.firebaseapp.com",
+  databaseURL: "https://mamb-ul-uloom-madrasa-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "mamb-ul-uloom-madrasa",
+  storageBucket: "mamb-ul-uloom-madrasa.firebasestorage.app",
+  messagingSenderId: "494107652219",
+  appId: "1:494107652219:web:8ba53cf8f5cbe3ea3772de"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ===================== SEED DATA (124 students) ===================== */
+/* cls -> shift mapping per spec */
+const CLASS_SHIFT = {1:1,2:2,3:1,4:2,5:1,6:2,7:1,8:2,9:1,10:2,"plus1":3,"plus2":3};
+const CLASS_LABEL = {1:"1",2:"2",3:"3",4:"4",5:"5",6:"6",7:"7",8:"8",9:"9",10:"10","plus1":"പ്ലസ് വൺ","plus2":"പ്ലസ് ടു"};
+
+const SEED_STUDENTS = {
+"691":{name:"അത്വാഉറഹ്മാൻ",father:"Ashkar Ali",dob:"06/04/2019",phone:"9100000001",cls:"1"},
+"708":{name:"മുഹമ്മദ് ഷാസിൽ",father:"Sirajuddin",dob:"26/05/2020",phone:"9100000002",cls:"1"},
+"707":{name:"മുഹമ്മദ് രിഫ്ദ്",father:"Sakeer",dob:"28/06/2019",phone:"9100000003",cls:"1"},
+"713":{name:"ഇബ്രാഹിം KM",father:"Abdurrahman K. M.",dob:"09/01/2020",phone:"9100000004",cls:"1"},
+"706":{name:"സൈനബ മറിയം മെഹ്‌വിഷ്",father:"Shameer Abdullah",dob:"26/09/2020",phone:"9100000005",cls:"1"},
+"711":{name:"റുഖയ്യ സിദ",father:"Muhammed Haris",dob:"26/09/2020",phone:"9100000006",cls:"1"},
+"680":{name:"അബ്ദുൽ ബാസിത്",father:"നൂറുദ്ദീൻ അബ്ദുള്ള",dob:"14/03/2018",phone:"9100000007",cls:"2"},
+"681":{name:"ഷാൻ അബ്ദുൽ റസാഖ്",father:"ഷംസുദ്ദീൻ",dob:"04/01/2019",phone:"9100000008",cls:"2"},
+"693":{name:"അഹദ് മുഹ്‌യിദ്ദീൻ",father:"ഷാനവാസ്",dob:"07/12/2019",phone:"9100000009",cls:"2"},
+"694":{name:"മുഹമ്മദ് റബീഹ്",father:"ആഷിഖ്",dob:"18/06/2019",phone:"9100000010",cls:"2"},
+"695":{name:"നസീഹ് ഇബ്രാഹിം",father:"അബ്ദുൽ നാസർ",dob:"23/08/2019",phone:"9100000011",cls:"2"},
+"700":{name:"മുഹമ്മദ് അമൻ",father:"സാഹിദ് മുഹമ്മദ് റാഷിദ്",dob:"16/03/2018",phone:"9100000012",cls:"2"},
+"687":{name:"ആയിഷ ലൈബ",father:"ഇബ്രാഹിം ഖലീൽ",dob:"16/12/2018",phone:"9100000013",cls:"2"},
+"689":{name:"സൻഹ റുഖയ്യ",father:"ഹിദായത്ത് അലി",dob:"23/05/2019",phone:"9100000014",cls:"2"},
+"690":{name:"സൈനബ ഇശൽ",father:"മുഹമ്മദ് അഷ്റഫ്",dob:"19/05/2019",phone:"9100000015",cls:"2"},
+"692":{name:"ഖദീജ ലിബ",father:"അബ്ദുൽ മുനീർ",dob:"28/08/2019",phone:"9100000016",cls:"2"},
+"696":{name:"റുഖയ്യ നദ",father:"അബ്ദുൽ നാസർ",dob:"23/08/2019",phone:"9100000017",cls:"2"},
+"620":{name:"അദ്നാൻ അസ്ഹർ അലി",father:"അലി",dob:"17/12/2014",phone:"9100000018",cls:"3"},
+"628":{name:"അബ്ദുൽ നാഫിഹ്",father:"രാജുദ്ദീൻ",dob:"05/09/2016",phone:"9100000019",cls:"3"},
+"657":{name:"രെഹാൻ ശൈഖ്",father:"സക്കരിയ്യ",dob:"23/04/2018",phone:"9100000020",cls:"3"},
+"658":{name:"മുഹമ്മദ് ലബീബ്",father:"ഹബീബ്",dob:"21/11/2017",phone:"9100000021",cls:"3"},
+"656":{name:"അഹ്‌മദ് നസ്ആൻ",father:"അബ്ദുൽ ലത്തീഫ്",dob:"03/04/2017",phone:"9100000022",cls:"3"},
+"653":{name:"ഇസ്ഹാഖ്",father:"ഇസ്മായിൽ",dob:"04/09/2016",phone:"9100000023",cls:"3"},
+"661":{name:"ഷംആൻ",father:"സുലൈമാൻ",dob:"11/02/2016",phone:"9100000024",cls:"3"},
+"676":{name:"അബ്ദുല്ലാഹ് ആമിർ",father:"ആഷിഖ്",dob:"11/06/2018",phone:"9100000025",cls:"3"},
+"677":{name:"മുഹ്സിൽ മിശാൽ",father:"മുഹമ്മദ് മുആദ്",dob:"07/11/2017",phone:"9100000026",cls:"3"},
+"679":{name:"മുഹമ്മദ് അഫ്‌റാസുറഹ്മാൻ",father:"ആസിഫ് റഹ്മാൻ",dob:"05/05/2018",phone:"9100000027",cls:"3"},
+"710":{name:"മുഹമ്മദ് ഹയാൻ",father:"മുഹമ്മദ് ഇഖ്ബാൽ",dob:"27/09/2017",phone:"9100000028",cls:"3"},
+"714":{name:"സിംസാറുൽ ഹഖ്",father:"ഹബീബ്",dob:"17/04/2016",phone:"9100000029",cls:"3"},
+"664":{name:"അഫ്രാ",father:"അഷ്റഫ്",dob:"18/10/2017",phone:"9100000030",cls:"3"},
+"669":{name:"നഫീസ സഫ",father:"ഇബ്രാഹിം",dob:"08/01/2018",phone:"9100000031",cls:"3"},
+"675":{name:"ഫാത്തിമ ഇശൽ",father:"ഇസ്മായിൽ",dob:"15/02/2018",phone:"9100000032",cls:"3"},
+"701":{name:"റിംസ",father:"സക്കീർ",dob:"15/06/2017",phone:"9100000033",cls:"3"},
+"685":{name:"അബ്ദുൽ ഹയൻ",father:"മാഹിൻ",dob:"14/12/2015",phone:"9100000034",cls:"4"},
+"599":{name:"നസ്‌വാൻ",father:"അബ്ദുൽ ഹാരിസ്",dob:"18/08/2015",phone:"9100000035",cls:"4"},
+"633":{name:"ഇബ്രാഹിം ഖലീൽ",father:"അബ്ദുൽ ലത്തീഫ്",dob:"04/01/2017",phone:"9100000036",cls:"4"},
+"634":{name:"അയാസ് അബൂബക്കർ",father:"ഹമീദ്",dob:"09/06/2016",phone:"9100000037",cls:"4"},
+"652":{name:"മുഹമ്മദ് രിഫാൽ",father:"റഷാദ്",dob:"23/02/2017",phone:"9100000038",cls:"4"},
+"654":{name:"ആസിം മുഹാസ്",father:"അബ്ദുൽ ഖാദർ ഷാഹ്",dob:"02/04/2018",phone:"9100000039",cls:"4"},
+"659":{name:"മുഹമ്മദ് ഹാഫിസ്",father:"ഹംസ മുഹമ്മദ്",dob:"28/06/2016",phone:"9100000040",cls:"4"},
+"660":{name:"മുഹമ്മദ് നഹ്‌യാൻ",father:"സാജിദ്",dob:"08/11/2017",phone:"9100000041",cls:"4"},
+"663":{name:"മുഹമ്മദ് മിഷ്ഹദ്",father:"അഹ്മദ് മുസമ്മിൽ",dob:"05/12/2017",phone:"9100000042",cls:"4"},
+"655":{name:"യൂസഫ് സാഹി",father:"മുഹമ്മദ് ഷംസീർ",dob:"26/04/2017",phone:"9100000043",cls:"4"},
+"662":{name:"അബ്ദുല്ലാഹ് ഷെയാൻ",father:"സലാം അബ്ദുറഹ്മാൻ അബ്ദുറഹീം",dob:"26/11/2016",phone:"9100000044",cls:"4"},
+"686":{name:"അലാ ബിൻ ബിലാൽ",father:"ബിലാൽ",dob:"27/08/2014",phone:"9100000045",cls:"4"},
+"698":{name:"മുഹമ്മദ് അമ്മാർ",father:"മുഹമ്മദ് Hനീഫ്",dob:"10/12/2014",phone:"9100000046",cls:"4"},
+"703":{name:"അബ്ദുറഹ്മാൻ ഇസാൻ",father:"മുഹമ്മദ് അഫ്താബ്",dob:"14/05/2016",phone:"9100000047",cls:"4"},
+"665":{name:"അസാ മറിയം",father:"മുജീബ്",dob:"21/01/2017",phone:"9100000048",cls:"4"},
+"611":{name:"അബ്ദുല്ലാഹ്",father:"Navas",dob:"24/11/2015",phone:"9100000049",cls:"5"},
+"630":{name:"മുഈനുദ്ദീൻ",father:"Habeeb",dob:"16/07/2016",phone:"9100000050",cls:"5"},
+"631":{name:"അദ്നാൻ",father:"Noushad",dob:"04/12/2016",phone:"9100000051",cls:"5"},
+"632":{name:"മുഹമ്മദ് മിൻഹാജ്",father:"Abdul Nasar",dob:"12/09/2016",phone:"9100000052",cls:"5"},
+"649":{name:"വാഹിദ് സമാൻ",father:"Mahmood Inayath",dob:"09/12/2015",phone:"9100000053",cls:"5"},
+"604":{name:"ഷൈമ",father:"അബ്ദുൽ ബഷീർ",dob:"02/10/2015",phone:"9100000054",cls:"5"},
+"640":{name:"മറിയം സഫ",father:"ഹാരിസ്",dob:"21/08/2016",phone:"9100000055",cls:"5"},
+"641":{name:"ഫാത്തിമ TK",father:"അഹ്മദ്",dob:"14/08/2016",phone:"9100000056",cls:"5"},
+"642":{name:"ആയിഷ",father:"അബ്ദുല്ലാഹ്",dob:"15/04/2016",phone:"9100000057",cls:"5"},
+"643":{name:"ഫാത്തിമ ജുമാന",father:"ഹാലിത്",dob:"22/02/2014",phone:"9100000058",cls:"5"},
+"667":{name:"ആയിഷ മെഹ്സിൻ",father:"മുഹമ്മദ് സ്വാദിഖ്",dob:"21/05/2015",phone:"9100000059",cls:"5"},
+"586":{name:"അബൂ താഹിർ",father:"ഹബീബ്",dob:"29/09/2014",phone:"9100000060",cls:"6"},
+"600":{name:"അബ്ദുൽ ഖാദർ ഷെഹാൻ",father:"അബ്ദുൽ ഖാദർ",dob:"25/04/2015",phone:"9100000061",cls:"6"},
+"601":{name:"മഹ്മൂദ് അസാൻ",father:"നിയാസ്",dob:"07/10/2014",phone:"9100000062",cls:"6"},
+"602":{name:"മാലിക് ഹസൻ",father:"ഖലീൽ",dob:"26/05/2015",phone:"9100000063",cls:"6"},
+"603":{name:"അഹ്‌മദ് നസൽ",father:"സത്താർ",dob:"25/05/2015",phone:"9100000064",cls:"6"},
+"646":{name:"ഫിസാൻ",father:"അർഷാദ്",dob:"19/04/2016",phone:"9100000065",cls:"6"},
+"668":{name:"ഇബ്രാഹിം",father:"ഇസ്മാഈൽ",dob:"04/09/2014",phone:"9100000066",cls:"6"},
+"684":{name:"മുഹമ്മദ് സിനാൻ",father:"മാഹിൻ",dob:"28/05/2012",phone:"9100000067",cls:"6"},
+"699":{name:"മുഹമ്മദ് ഷിബ്‌ലി",father:"മുഹമ്മദ് റാഷിദ്",dob:"05/09/2013",phone:"9100000068",cls:"6"},
+"606":{name:"ആയിഷ ഐഫ",father:"ആസിഫ് റഹ്മാൻ",dob:"18/05/2015",phone:"9100000069",cls:"6"},
+"607":{name:"ഷഹാന ഷെറിൻ",father:"ഷമീർ അബ്ദുള്ള",dob:"23/01/2016",phone:"9100000070",cls:"6"},
+"608":{name:"ലിയ്യാ ഫാത്തിമ",father:"ഖലീൽ",dob:"27/10/2015",phone:"9100000071",cls:"6"},
+"609":{name:"ആയിഷ മെഹ്‌റ",father:"അഷ്റഫ്",dob:"17/02/2015",phone:"9100000072",cls:"6"},
+"613":{name:"ആയിഷ ഹിബ",father:"ഹംസ",dob:"18/12/2015",phone:"9100000073",cls:"6"},
+"563":{name:"മുഹമ്മദ് സ്വബാഹ്",father:"Shahnawaz",dob:"04/10/2013",phone:"9100000074",cls:"7"},
+"584":{name:"അബ്ദുല്ലാഹ് സെയ്ഫ്",father:"Zubair",dob:"24/12/2013",phone:"9100000075",cls:"7"},
+"565":{name:"മറിയം സുഹാ",father:"Haris",dob:"09/10/2013",phone:"9100000076",cls:"7"},
+"570":{name:"ഫാത്തിമ",father:"Hameed",dob:"18/10/2013",phone:"9100000077",cls:"7"},
+"571":{name:"ആയിഷ തമന്ന",father:"Sirajuddin",dob:"16/09/2013",phone:"9100000078",cls:"7"},
+"587":{name:"മറിയം ഫൈഹ",father:"Muhammad Kunhi",dob:"19/05/2014",phone:"9100000079",cls:"7"},
+"588":{name:"അംന ഫാത്തിമ",father:"Sherif",dob:"27/08/2014",phone:"9100000080",cls:"7"},
+"589":{name:"സെബ മറിയം",father:"Zameel",dob:"30/08/2014",phone:"9100000081",cls:"7"},
+"590":{name:"സെല്ലാ",father:"Shamsir",dob:"26/03/2014",phone:"9100000082",cls:"7"},
+"639":{name:"മെഹ്റ മുംതാസ്",father:"Muaaz",dob:"16/12/2013",phone:"9100000083",cls:"7"},
+"672":{name:"മിൻഹാ ഫാത്തിമ",father:"Nooruddin",dob:"23/04/2014",phone:"9100000084",cls:"7"},
+"697":{name:"ഹാസിയ ഹംന",father:"Muhammad Hanif",dob:"09/08/2012",phone:"9100000085",cls:"7"},
+"560":{name:"മുഹമ്മദ് ഷെഹ്‌സാദ്",father:"Abdullah",dob:"04/06/2013",phone:"9100000086",cls:"8"},
+"561":{name:"അബ്ദുല്ലാഹ് അഷ്റഫ്",father:"Ashraf",dob:"10/10/2013",phone:"9100000087",cls:"8"},
+"547":{name:"മുഹമ്മദ് നസ്മിൽ",father:"Haris",dob:"20/07/2012",phone:"9100000088",cls:"8"},
+"555":{name:"ആയിഷ അഷ്റഫ്",father:"Muhammad Ashraf",dob:"16/07/2012",phone:"9100000089",cls:"8"},
+"567":{name:"സഹ്റ ബത്തുൽ",father:"Ibrahim Khalil",dob:"17/06/2013",phone:"9100000090",cls:"8"},
+"568":{name:"ഫാത്തിമ മിസ്ന",father:"Abdul Nasar",dob:"02/06/2014",phone:"9100000091",cls:"8"},
+"569":{name:"ആയിഷ നുവൈറ",father:"Abdul Latif",dob:"21/02/2013",phone:"9100000092",cls:"8"},
+"683":{name:"ആമിന ഷുസൈന",father:"Haris",dob:"12/10/2012",phone:"9100000093",cls:"8"},
+"528":{name:"അഹ്സം മിശാൽ",father:"Abdul Khader",dob:"11/05/2012",phone:"9100000094",cls:"9"},
+"538":{name:"അബ്ദുല്ലാഹ് സഈം",father:"Mohammed Jameel",dob:"11/06/2011",phone:"9100000095",cls:"9"},
+"539":{name:"അഹ്സൻ ഷാസിൽ",father:"Ashraf",dob:"30/12/2012",phone:"9100000096",cls:"9"},
+"540":{name:"മുഹമ്മദ് ഷഹീൻ",father:"Shameer Abdullah",dob:"05/05/2012",phone:"9100000097",cls:"9"},
+"541":{name:"മുഹ്‌യിദ്ദീൻ നിഹാൽ",father:"Mohammed Habeeb",dob:"13/12/2011",phone:"9100000098",cls:"9"},
+"715":{name:"മുഹമ്മദ് മിദ്ലാജ്",father:"Abdul Karim",dob:"14/08/2010",phone:"9100000099",cls:"9"},
+"526":{name:"ഹിബ മിഫന്ന",father:"Mahmood",dob:"17/11/2011",phone:"9100000100",cls:"9"},
+"537":{name:"ഫാത്തിമ ഷാഹിയ",father:"Sirajuddin",dob:"16/06/2011",phone:"9100000101",cls:"9"},
+"543":{name:"ഫാത്തിമ KS",father:"Sajid",dob:"20/10/2012",phone:"9100000102",cls:"9"},
+"545":{name:"ഖദീജ മിൻഹ",father:"Ahmad Muzammil",dob:"07/06/2012",phone:"9100000103",cls:"9"},
+"705":{name:"അഖീല",father:"Abu Nawaz",dob:"07/02/2010",phone:"9100000104",cls:"9"},
+"513":{name:"നബീൽ ഇബ്രാഹിം",father:"Shahnavaz",dob:"28/11/2011",phone:"9100000105",cls:"10"},
+"704":{name:"മുഹമ്മദ് ഷംനാദ്",father:"Mohammed Sherif",dob:"05/03/2012",phone:"9100000106",cls:"10"},
+"525":{name:"സനൂബിയ",father:"Zakariya",dob:"21/03/2012",phone:"9100000107",cls:"10"},
+"529":{name:"ഷെസാ ഫാത്തിമ",father:"Shafi",dob:"19/03/2011",phone:"9100000108",cls:"10"},
+"615":{name:"ഫാത്തിമ ഷാഹില",father:"Abdul Khader",dob:"24/07/2012",phone:"9100000109",cls:"10"},
+"637":{name:"ആയിഷ നജ",father:"Inayat",dob:"03/02/2010",phone:"9100000110",cls:"10"},
+"486":{name:"മുഹമ്മദ് നിഹാൽ",father:"അബ്ദുൽ ലത്തീഫ്",dob:"06/01/2009",phone:"9100000111",cls:"plus1"},
+"487":{name:"അബ്ദുല്ലാഹ് ഷാഹിസ്",father:"ഷാഫി",dob:"17/01/2009",phone:"9100000112",cls:"plus1"},
+"514":{name:"ജാസിം ഖാലിദ്",father:"ഖാലിദ്",dob:"02/02/2011",phone:"9100000113",cls:"plus1"},
+"542":{name:"ഷെസിൻ KS",father:"സാജിദ്",dob:"09/10/2010",phone:"9100000114",cls:"plus1"},
+"650":{name:"മഹ്ഫൂസ്",father:"ഇബ്രാഹിം",dob:"01/09/2010",phone:"9100000115",cls:"plus1"},
+"712":{name:"മുഹമ്മദ് സ്വഫ്വാൻ",father:"മുസമ്മിൽ",dob:"16/03/2011",phone:"9100000116",cls:"plus1"},
+"499":{name:"ഫാത്തിമ",father:"ഇബ്രാഹിം",dob:"23/04/2009",phone:"9100000117",cls:"plus1"},
+"518":{name:"ഖദീജ TA",father:"Ibrahim Khalil",dob:"05/10/2011",phone:"9100000118",cls:"plus1"},
+"626":{name:"ആയിഷ മുൻദിറ",father:"ഇബ്രാഹിം",dob:"07/01/2011",phone:"9100000119",cls:"plus1"},
+"574":{name:"മുഹമ്മദ് ലുബൈബ്",father:"Muhyiddin",dob:"26/10/2010",phone:"9100000120",cls:"plus2"},
+"489":{name:"മുഹമ്മദ് മിസാജ്",father:"അഹ്‌മദ് മുസമ്മിൽ",dob:"18/07/2009",phone:"9100000121",cls:"plus2"},
+"492":{name:"ഹുദാ ഫാത്തിമ",father:"ഹാരിസ്",dob:"10/11/2009",phone:"9100000122",cls:"plus2"},
+"493":{name:"ലൈല നസ്രിൻ",father:"അബ്ദുള്ള മുനീർ",dob:"19/06/2009",phone:"9100000123",cls:"plus2"},
+"494":{name:"ആയിഷ നജ",father:"നവാസ്",dob:"24/07/2008",phone:"9100000124",cls:"plus2"}
+};
+// attach shift to each student from class
+Object.values(SEED_STUDENTS).forEach(s=>s.shift=CLASS_SHIFT[s.cls]);
+
+/* ===================== SEEDING (one-time) ===================== */
+async function seedIfEmpty(){
+  const snap = await db.ref('students').get();
+  if(!snap.exists()){
+    await db.ref('students').set(SEED_STUDENTS);
+  }
+  const shiftSnap = await db.ref('shiftClassMapping').get();
+  if(!shiftSnap.exists()){
+    await db.ref('shiftClassMapping/shifts').set({
+      "1":{time:"7:30 AM - 9:00 AM", classes:["1","3","5","7","9"]},
+      "2":{time:"4:00 PM - 5:30 PM", classes:["2","4","6","8","10"]},
+      "3":{time:"6:00 AM - 7:00 AM", classes:["plus1","plus2"]}
+    });
+  }
+}
+
+/* ===================== STATE ===================== */
+const state = {
+  role: localStorage.getItem('mu_role') || null,
+  user: JSON.parse(localStorage.getItem('mu_user')||'null'),
+  tab: 'home',
+  data: { students:{}, staff:{}, fees:{}, attendance:{}, holidays:[], announcements:[],
+          examTimetables:{}, feeQR:{}, complaints:[], marks:{}, shiftClassMapping:{}, staffAttendance:{}, results:{} }
+};
+
+function persistSession(){
+  if(state.role){ localStorage.setItem('mu_role', state.role); localStorage.setItem('mu_user', JSON.stringify(state.user||null)); }
+  else { localStorage.removeItem('mu_role'); localStorage.removeItem('mu_user'); }
+}
+
+function toast(msg, ok=true){
+  const t = document.getElementById('toast');
+  document.getElementById('toast-icon').textContent = ok ? '✓' : '!';
+  document.getElementById('toast-msg').textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(window.__toastT);
+  window.__toastT = setTimeout(()=>t.classList.add('hidden'), 2600);
+}
+
+function waLink(phone, text){
+  let p = (phone||'').replace(/\D/g,'');
+  if(p.length===10) p = '91'+p;
+  return `https://wa.me/${p}?text=${encodeURIComponent(text)}`;
+}
+
+const el = (tag, cls='', html='') => { const d=document.createElement(tag); if(cls)d.className=cls; if(html)d.innerHTML=html; return d; };
+
+/* ===================== LIVE DATA LISTENERS ===================== */
+function bindLiveData(cb){
+  const paths = ['students','staff','fees','attendance','holidays','announcements','examTimetables','feeQR','complaints','marks','shiftClassMapping','staffAttendance','results'];
+  paths.forEach(p=>{
+    db.ref(p).on('value', snap=>{
+      state.data[p] = snap.val() || (Array.isArray(state.data[p])?[]:{});
+      cb && cb(p);
+    });
+  });
+}
+
+/* ===================== ROUTER / RENDER ===================== */
+const app = document.getElementById('app');
+
+function render(){
+  app.innerHTML='';
+  if(!state.role) app.appendChild(LoginScreen());
+  else if(state.role==='sadhar') app.appendChild(SadharPanel());
+  else if(state.role==='teacher') app.appendChild(TeacherPanel());
+  else if(state.role==='management') app.appendChild(ManagementPanel());
+  else if(state.role==='parent') app.appendChild(ParentPanel());
+}
+
+/* ===================== HEADER ===================== */
+function Header(title, subtitle, roleLabel){
+  const h = el('div','bg-deep text-white px-5 pt-6 pb-7 lattice relative overflow-hidden');
+  h.innerHTML = `
+    <div class="flex items-center justify-between relative z-10">
+      <div>
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded-full bg-gold/90 flex items-center justify-center font-display text-deep text-lg font-bold">م</div>
+          <div>
+            <div class="font-display text-lg leading-tight">${title}</div>
+            <div class="text-[11px] text-gold/90 tracking-wide">${subtitle}</div>
+          </div>
+        </div>
+      </div>
+      ${roleLabel ? `<button id="logoutBtn" class="text-[11px] pill bg-white/10 border border-gold/40 px-3 py-1.5 hover:bg-white/20 transition">${roleLabel} · പുറത്തുപോകുക</button>` : ''}
+    </div>
+    <div class="gold-divider mt-4"></div>`;
+  setTimeout(()=>{ const b=h.querySelector('#logoutBtn'); if(b) b.onclick=()=>{ state.role=null; state.user=null; persistSession(); render(); }; });
+  return h;
+}
+
+function NavBar(items, activeKey, onSelect){
+  const nav = el('div','grid bg-deep text-white border-t border-gold/30 sticky bottom-0 z-30');
+  nav.style.gridTemplateColumns = `repeat(${items.length},1fr)`;
+  items.forEach(it=>{
+    const b = el('button', `flex flex-col items-center gap-0.5 py-2.5 text-[10px] transition ${it.key===activeKey?'tab-active':''}`);
+    b.innerHTML = `<span class="ic text-base">${it.icon}</span><span>${it.label}</span>`;
+    b.onclick = ()=>onSelect(it.key);
+    nav.appendChild(b);
+  });
+  return nav;
+}
+
+/* ===================== LOGIN SCREEN ===================== */
+function LoginScreen(){
+  const wrap = el('div','flex-1 flex flex-col');
+  wrap.appendChild(Header('മമ്പഉൽ ഉലൂം മദ്റസ','കൊറക്കോട് · 2026-2027'));
+
+  const body = el('div','flex-1 px-5 py-6 max-w-md w-full mx-auto');
+  body.innerHTML = `
+    <div class="text-center mb-6">
+      <div class="font-display text-2xl text-deep">സ്വാഗതം 🌙</div>
+      <p class="text-sm text-deep/60 mt-1">നിങ്ങളുടെ റോൾ തിരഞ്ഞെടുത്ത് ലോഗിൻ ചെയ്യുക</p>
+    </div>
+    <div id="roleTabs" class="grid grid-cols-4 gap-2 mb-6"></div>
+    <div id="loginFormArea"></div>
+    <div class="gold-divider my-8"></div>
+    <button id="publicResultBtn" class="w-full arch-card bg-deep2 text-white py-4 px-4 flex items-center justify-between hover:bg-deep transition">
+      <span class="flex items-center gap-2 font-medium"><span class="text-xl">🏆</span> പബ്ലിക് റിസൾട്ട് കാണുക</span>
+      <span class="text-gold text-sm">ലോഗിൻ ആവശ്യമില്ല →</span>
+    </button>
+  `;
+  wrap.appendChild(body);
+
+  const roles = [
+    {key:'sadhar', label:'സദർ', icon:'👑'},
+    {key:'teacher', label:'അധ്യാപകൻ', icon:'🧑‍🏫'},
+    {key:'management', label:'മാനേജ്മെന്റ്', icon:'🏛️'},
+    {key:'parent', label:'രക്ഷിതാവ്', icon:'👪'},
+  ];
+  let activeRole = 'sadhar';
+
+  function paintTabs(){
+    const t = body.querySelector('#roleTabs'); t.innerHTML='';
+    roles.forEach(r=>{
+      const b = el('button', `arch-card py-3 flex flex-col items-center gap-1 text-[11px] font-medium border transition ${activeRole===r.key?'bg-deep text-white border-deep':'bg-white text-deep border-deep/10'}`);
+      b.innerHTML = `<span class="text-xl">${r.icon}</span>${r.label}`;
+      b.onclick = ()=>{ activeRole=r.key; paintTabs(); paintForm(); };
+      t.appendChild(b);
+    });
+  }
+
+  function paintForm(){
+    const f = body.querySelector('#loginFormArea');
+    if(activeRole==='parent'){
+      f.innerHTML = `
+        <div class="space-y-3">
+          <label class="text-sm font-medium text-deep/80">രജിസ്റ്റർ നമ്പർ</label>
+          <input id="regInput" type="text" placeholder="ഉദാ: 691" class="w-full border-2 border-deep/15 focus:border-gold rounded-xl px-4 py-3 outline-none text-base"/>
+          <button id="loginBtn" class="w-full bg-deep text-white rounded-xl py-3.5 font-medium hover:bg-deep2 transition">പ്രവേശിക്കുക</button>
+        </div>`;
+    } else {
+      f.innerHTML = `
+        <div class="space-y-3">
+          <label class="text-sm font-medium text-deep/80">യൂസർനെയിം</label>
+          <input id="userInput" type="text" class="w-full border-2 border-deep/15 focus:border-gold rounded-xl px-4 py-3 outline-none text-base"/>
+          <label class="text-sm font-medium text-deep/80">പാസ്‌വേർഡ്</label>
+          <input id="passInput" type="password" class="w-full border-2 border-deep/15 focus:border-gold rounded-xl px-4 py-3 outline-none text-base"/>
+          <button id="loginBtn" class="w-full bg-deep text-white rounded-xl py-3.5 font-medium hover:bg-deep2 transition">പ്രവേശിക്കുക</button>
+          ${activeRole==='sadhar' ? '<p class="text-[11px] text-deep/40 text-center pt-1">സദർ: sadhar / 6682</p>' : ''}
+        </div>`;
+    }
+    f.querySelector('#loginBtn').onclick = ()=>doLogin(activeRole, f);
+  }
+
+  async function doLogin(role, f){
+    if(role==='parent'){
+      const reg = f.querySelector('#regInput').value.trim();
+      const snap = await db.ref('students/'+reg).get();
+      if(snap.exists() && !snap.val().deleted){
+        state.role='parent'; state.user={reg, ...snap.val()}; persistSession(); toast('സ്വാഗതം!'); render();
+      } else toast('രജിസ്റ്റർ നമ്പർ കണ്ടെത്താനായില്ല', false);
+      return;
+    }
+    const u = f.querySelector('#userInput').value.trim();
+    const p = f.querySelector('#passInput').value.trim();
+    if(role==='sadhar'){
+      if(u==='sadhar' && p==='6682'){ state.role='sadhar'; state.user={name:'സദർ'}; persistSession(); toast('സ്വാഗതം സദർ!'); render(); }
+      else toast('യൂസർനെയിം/പാസ്‌വേർഡ് തെറ്റാണ്', false);
+      return;
+    }
+    // teacher / management -> check staff node
+    const staffSnap = await db.ref('staff').get();
+    const staff = staffSnap.val() || {};
+    const found = Object.entries(staff).find(([id,s])=> s.username===u && s.password===p && s.role===role && !s.deleted);
+    if(found){ state.role=role; state.user={id:found[0], ...found[1]}; persistSession(); toast('സ്വാഗതം!'); render(); }
+    else toast('പ്രവേശനം നിഷേധിച്ചു', false);
+  }
+
+  paintTabs(); paintForm();
+  body.querySelector('#publicResultBtn').onclick = ()=>{ app.innerHTML=''; app.appendChild(PublicResultScreen()); };
+  return wrap;
+}
+
+/* ===================== PUBLIC RESULT SCREEN ===================== */
+function PublicResultScreen(){
+  const wrap = el('div','flex-1 flex flex-col min-h-screen');
+  wrap.appendChild(Header('പബ്ലിക് റിസൾട്ട്','മമ്പഉൽ ഉലൂം മദ്റസ കൊറക്കോട്'));
+  const body = el('div','flex-1 px-5 py-5 max-w-md w-full mx-auto');
+  const classes = Object.keys(CLASS_LABEL);
+  const examTypes = [['quarter','പാദ വാർഷികം'],['half','അർധ വാർഷികം'],['annual','വാർഷികം']];
+  body.innerHTML = `
+    <button id="backBtn" class="text-deep/60 text-sm mb-4 flex items-center gap-1">← തിരികെ</button>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <select id="clsSel" class="border-2 border-deep/15 rounded-xl px-3 py-2.5 text-sm">${classes.map(c=>`<option value="${c}">${CLASS_LABEL[c]}-ാം ക്ലാസ്</option>`).join('')}</select>
+      <select id="examSel" class="border-2 border-deep/15 rounded-xl px-3 py-2.5 text-sm">${examTypes.map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+    </div>
+    <div id="resultArea"></div>
+  `;
+  wrap.appendChild(body);
+  wrap.querySelector('#backBtn').onclick = render;
+
+  async function loadResult(){
+    const cls = body.querySelector('#clsSel').value;
+    const exam = body.querySelector('#examSel').value;
+    const area = body.querySelector('#resultArea');
+    area.innerHTML = `<div class="space-y-2">${[1,2,3].map(()=>`<div class="skel h-14 rounded-xl"></div>`).join('')}</div>`;
+    const [marksSnap, studSnap] = await Promise.all([db.ref('marks').get(), db.ref('students').get()]);
+    const marks = marksSnap.val() || {}; const students = studSnap.val() || {};
+    const rows = [];
+    Object.entries(marks).forEach(([reg,arr])=>{
+      if(!students[reg] || students[reg].cls!==cls) return;
+      const list = (arr||[]).filter(m=>m.examType===exam);
+      if(!list.length) return;
+      const total = list.reduce((s,m)=>s+Number(m.marks||0),0);
+      rows.push({reg, name:students[reg].name, photo:students[reg].photo, total});
+    });
+    rows.sort((a,b)=>b.total-a.total);
+    if(!rows.length){ area.innerHTML = `<div class="text-center text-deep/40 py-10 text-sm">ഈ പരീക്ഷയുടെ റിസൾട്ട് ലഭ്യമല്ല</div>`; return; }
+    const medals=['🥇','🥈','🥉'];
+    area.innerHTML = `<div class="space-y-2">` + rows.map((r,i)=>`
+      <div class="arch-card bg-white border ${i<3?'border-gold':'border-deep/10'} p-3 flex items-center gap-3">
+        <div class="w-9 text-center font-display text-lg">${i<3?medals[i]:i+1}</div>
+        <div class="w-10 h-10 rounded-full bg-deep/10 overflow-hidden flex items-center justify-center text-deep/40 text-xs">${r.photo?`<img src="${r.photo}" class="w-full h-full object-cover"/>`:'👤'}</div>
+        <div class="flex-1">
+          <div class="font-medium text-sm">${r.name}</div>
+          <div class="text-[11px] text-deep/40">Reg: ${r.reg}</div>
+        </div>
+        <div class="font-display text-lg text-deep">${r.total}</div>
+      </div>`).join('') + `</div>
+      <button onclick="window.print()" class="w-full mt-4 border-2 border-deep/20 text-deep rounded-xl py-2.5 text-sm font-medium">🖨️ പ്രിന്റ് / PDF</button>`;
+  }
+  body.querySelector('#clsSel').onchange = loadResult;
+  body.querySelector('#examSel').onchange = loadResult;
+  loadResult();
+  return wrap;
+}
+
+/* ===================== INIT ===================== */
+seedIfEmpty().then(()=>{
+  bindLiveData(()=>{ if(state.role) refreshCurrentPanel(); });
+  render();
+});
+function refreshCurrentPanel(){ if(window.__panelRefresh) window.__panelRefresh(); }
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+</script>
+
+<script src="panels.js"></script>
+</body>
+</html>
